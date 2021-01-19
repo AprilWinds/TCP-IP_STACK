@@ -1,6 +1,6 @@
 
 tcp_stack : device.o init.o
-	gcc -o tcp_stack device.o init.o -lpcap
+	gcc -o tcp_stack device.o init.o -lpcap -pthread
 
 device.o : device.c device.h common.h
 	gcc -c device.c

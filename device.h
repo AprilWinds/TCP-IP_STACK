@@ -1,7 +1,7 @@
 #ifndef _DEVICE_H_
 #define _DEVICE_H_
 #include <pcap/pcap.h>
-    
+#include <pthread.h>
 
 #define MAX_NETWORK_SEGMENT_SIZE       65535
 #define PROMISC_ENABLE                 1
@@ -12,7 +12,15 @@
 
 typedef struct _net_device{
     pcap_t* pcap_dev;
+    /* rx*/
+    pthread_t rx_thread;
+    pthread_cond_t rxq_cond;
+    pthread_mutex_t rxq_mutex;
+
 }net_device_t;
+
+
+
 
 net_device_t*  netdev_init(char* if_name);
 void netdev_deinit(net_device_t* ndev);
