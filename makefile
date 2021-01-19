@@ -2,7 +2,7 @@
 tcp_stack : device.o init.o
 	gcc -o tcp_stack device.o init.o -lpcap -pthread
 
-device.o : device.c device.h common.h
+device.o : device.c device.h common.h utils.h
 	gcc -c device.c
 
 init.o : init.c init.h device.h

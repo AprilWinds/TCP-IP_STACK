@@ -74,7 +74,7 @@ static inline void enqueue(queue_t* q, queue_t* qnode){
     list_add_tail(&q->head,&qnode->head);
 }
 
-static inline queue_t* dequeue(queue* qhead){
+static inline queue_t* dequeue(queue_t* qhead){
     list_head_t *node = NULL;
     node = qhead->head.next;
     list_del(node);

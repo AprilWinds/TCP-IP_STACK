@@ -10,19 +10,30 @@
 static net_device_t* gndev = NULL;
 static int terminate_loop;
 
-static void pcap_callback(unsigned char *arg, const struct pcap_pkthdr *pkthdr, 
+static void  pcap_callback(unsigned char *arg, const struct pcap_pkthdr *pkthdr, 
                              const unsigned char *packet){
-    if(packet == NULL) return;
-    ethhdr_t* ethpkt = (ethhdr_t *)packet;
+    if(packet == NULL || arg == NULL) return;
     net_device_t* ndev = (net_device_t*) arg;
-    printf("%ld.%06u: capture length: %u, pkt length: %u, ethernet type: %04x, "MACSTR " --> " MACSTR"\n",
-    pkthdr->ts.tv_sec, pkthdr->ts.tv_usec, pkthdr->caplen, pkthdr->len,
-    NTOHS(ethpkt->type), MAC2STR(ethpkt->src), MAC2STR(ethpkt->dst));
+    
+    printf("%ld.%06ld: capture length: %u, pkt length: %u\n",
+      pkthdr->ts.tv_sec, pkthdr->ts.tv_usec, pkthdr->caplen, pkthdr->len);
+
+    unsigned int copy_len = sizeof(dev_rxpkt_t) +pkthdr->caplen;
+    dev_rxpkt_t* rx_pkt = (dev_rxpkt_t* )malloc(copy_len);
+    if(rx_pkt == NULL) 
+        printf("no memory for rx packet, %s (%d)\n",strerror(errno),errno);
+    memset(rx_pkt,0,copy_len);
+    rx_pkt->len = pkthdr->caplen;
+    memcpy(rx_pkt->payload,packet,rx_pkt->len);
+   
+    pthread_mutex_lock(&ndev->rxq_mutex);
+    enqueue(&ndev->rxpkt_q,&rx_pkt->node);
+    pthread_mutex_unlock(&ndev->rxq_mutex);
     pthread_cond_signal(&ndev->rxq_cond);
 }
 
 
-static void init_packet_filter(char* filter, int size){
+static void  init_packet_filter(char* filter, int size){
     if(filter == NULL || size == 0){
         printf("Null packet filter: %p or Size: %u\n",
                         filter, size);
@@ -35,15 +46,51 @@ static void init_packet_filter(char* filter, int size){
 
 }
 
+static void  dev_flush_rxpktq(net_device_t *ndev){
+    int flush_count = 0;
+    dev_rxpkt_t *rxpkt = NULL;
+    queue_t *qnode = NULL;
+  
+    if (ndev == NULL)
+          return;
+    while(!queue_empty(&ndev->rxpkt_q)) {
+        qnode = dequeue(&ndev->rxpkt_q);
+        rxpkt = container_of(qnode, dev_rxpkt_t, node);
+        free(rxpkt);
+        flush_count += 1;
+    }
+    printf("dev flushed %d packets\n", flush_count);
+}
+
+static void  dev_process_rxpkt(net_device_t* ndev,dev_rxpkt_t* rxpkt){
+    ethhdr_t *ethpkt = NULL;
+    if (ndev == NULL || rxpkt == NULL)
+        return;
+    ethpkt = (ethhdr_t *)rxpkt->payload;
+          printf("dev rx, ethernet type: %04x, "MACSTR " --> " MACSTR"\n",
+          NTOHS(ethpkt->type), MAC2STR(ethpkt->src), MAC2STR(ethpkt->dst));
+    free(rxpkt);
+}
+
 static void* dev_rx_routine(void* args){
     if(args == NULL) goto out;
     net_device_t* ndev = (net_device_t*)args;
-    while(!terminate_loop){
+    while(terminate_loop==0){
         pthread_mutex_lock(&ndev->rxq_mutex);
         pthread_cond_wait(&ndev->rxq_cond,&ndev->rxq_mutex);
         pthread_mutex_unlock(&ndev->rxq_mutex);
         if(terminate_loop)
             break;
+again:  pthread_mutex_lock(&ndev->rxq_mutex);
+        if (!queue_empty(&ndev->rxpkt_q)) {
+            queue_t* qnode = dequeue(&ndev->rxpkt_q);
+            pthread_mutex_unlock(&ndev->rxq_mutex);
+            dev_rxpkt_t* rxpkt = container_of(qnode, dev_rxpkt_t, node);
+            dev_process_rxpkt(ndev, rxpkt);
+            goto again;
+          }
+
+
         printf("packet received\n");
     }
 
@@ -52,7 +99,7 @@ out:
     pthread_exit(0);
 }
 
-static int dev_rx_init(net_device_t* ndev){
+static int   dev_rx_init(net_device_t* ndev){
     if(ndev == NULL) return -1;
     printf("Network device RX init \n");
 
@@ -67,18 +114,21 @@ static int dev_rx_init(net_device_t* ndev){
     terminate_loop = 0;
     if(pthread_create(&ndev->rx_thread,NULL,dev_rx_routine,(void*)ndev))
         printf("Failed to create rxq thread, %s (%d)\n",strerror(errno),errno);
+    queue_init(&ndev->rxpkt_q);
     return 0;
 out:
     return -1;
 }
 
-static void dev_rx_deinit(net_device_t* ndev){
+static void  dev_rx_deinit(net_device_t* ndev){
     if(ndev == NULL) 
         return;
     printf("Network device RX deinit\n");
     pthread_cond_signal(&ndev->rxq_cond);
     if(pthread_join(ndev->rx_thread,NULL))
         printf("rx thread join failed, %s (%d)\n",strerror(errno),errno);
+    
+    dev_flush_rxpktq(ndev);
 
     if (pthread_cond_destroy(&ndev->rxq_cond))
         printf("rxq condition destroy failed, %s (%d)\n",strerror(errno), errno);
@@ -88,7 +138,7 @@ static void dev_rx_deinit(net_device_t* ndev){
 }
 
 
-net_device_t*  netdev_init(char* if_name){
+net_device_t* netdev_init(char* if_name){
     char pcap_packet_filter[FILTER_BUFFER_SIZE];
     char err_buf[PCAP_BUF_SIZE];
     struct bpf_program filter_code;
@@ -159,6 +209,3 @@ void netdev_stop_loop(net_device_t* ndev){
 net_device_t* netdev_get(){
     return gndev;
 }
-
-
-
