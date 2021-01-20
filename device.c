@@ -2,6 +2,8 @@
 #include <string.h>
 #include <errno.h>
 #include <malloc.h>
+#include <sys/socket.h>
+#include <linux/if_ether.h>
 
 #include "init.h"
 #include "common.h"
@@ -89,7 +91,7 @@ again:  pthread_mutex_lock(&ndev->rxq_mutex);
             dev_process_rxpkt(ndev, rxpkt);
             goto again;
           }
-
+        pthread_mutex_unlock(&ndev->rxq_mutex);
 
         printf("packet received\n");
     }
@@ -136,6 +138,37 @@ static void  dev_rx_deinit(net_device_t* ndev){
     if (pthread_mutex_destroy(&ndev->rxq_mutex))
         printf("rxq mutex destroy failed, %s (%d)\n",strerror(errno), errno);
 }
+
+
+static void dev_flush_rx_pktq(net_device_t* ndev){
+
+}
+
+static void* dev_tx_routine(void* args){
+    
+}
+
+
+static int  dev_tx_init(net_device_t* ndev){
+    if(ndev == NULL) return -1;
+    if(pthread_cond_init(&ndev->txq_cond))
+        printf("")
+}
+
+static void dev_tx_deinit(net_device_t* ndev){
+
+}
+
+
+
+
+
+
+
+
+
+
+
 
 
 net_device_t* netdev_init(char* if_name){

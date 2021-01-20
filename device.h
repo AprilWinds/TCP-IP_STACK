@@ -14,11 +14,19 @@
 
 typedef struct _net_device{
     pcap_t* pcap_dev;
-    /* rx*/
+    //rx
     pthread_t rx_thread;
     pthread_cond_t rxq_cond;
     pthread_mutex_t rxq_mutex;
     queue_t rxpkt_q;
+
+    //tx
+    int tx_sock;
+    pthread_t tx_thread;
+    pthread_mutex_t txq_mutex;
+    pthread_cond_t  txq_cond;
+    queue_t txpkt_q;
+    int ifindex;
 }net_device_t;
 
 
