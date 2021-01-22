@@ -145,6 +145,8 @@ static void dev_flush_rx_pktq(net_device_t* ndev){
 }
 
 static void* dev_tx_routine(void* args){
+    if(args == NULL) return NULL;
+    net_device_t* ndev = (net_device_t*) args;
     
 }
 
@@ -152,7 +154,8 @@ static void* dev_tx_routine(void* args){
 static int  dev_tx_init(net_device_t* ndev){
     if(ndev == NULL) return -1;
     if(pthread_cond_init(&ndev->txq_cond))
-        printf("")
+        printf("Failed to");
+    if(pthread_mutex_init(&ndev->txq_mutex))
 }
 
 static void dev_tx_deinit(net_device_t* ndev){
