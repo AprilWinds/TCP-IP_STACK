@@ -18,7 +18,7 @@ int main(){
     netdev_start_loop(ndev);
 
 out:
-   netdev_deinit(ndev);
+   netdev_destory(ndev);
    return 0;
 
 }

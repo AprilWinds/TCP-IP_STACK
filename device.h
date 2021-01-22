@@ -14,6 +14,7 @@
 
 typedef struct _net_device{
     pcap_t* pcap_dev;
+    
     //rx
     pthread_t rx_thread;
     pthread_cond_t rxq_cond;
@@ -31,26 +32,9 @@ typedef struct _net_device{
 
 
 net_device_t*  netdev_init(char* if_name);
-void netdev_deinit(net_device_t* ndev);
+void netdev_destory(net_device_t* ndev);
 void netdev_start_loop(net_device_t* ndev);
 void netdev_stop_loop(net_device_t* ndev);
 net_device_t* netdev_get();
-
-typedef struct _dev_rx_pkt{
-    queue_t node;
-    unsigned int seq;
-    unsigned int len;
-    unsigned char payload[0];
-}__attribute__ ((packed)) dev_rxpkt_t;
-
-typedef struct _dev_tx_pkt{
-    queue_t node;
-    unsigned int seq;
-    void* pbuf;
-}__attribute__((packed)) dev_txpkt_t;
-
-
-
-
 
 #endif
