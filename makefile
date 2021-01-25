@@ -5,7 +5,7 @@ tcp_stack : device.o init.o
 device.o : device.c device.h common.h utils.h
 	gcc -c device.c
 
-init.o : init.c init.h device.h
+init.o : init.c  device.h
 	gcc -c init.c
 
 clean:

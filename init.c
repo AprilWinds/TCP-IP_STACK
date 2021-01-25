@@ -1,7 +1,9 @@
-#include<stdio.h>
-#include<signal.h>
-#include "init.h"
+#include <stdio.h>
+#include <signal.h>
 #include "device.h"
+
+#define DEFAULT_IFNAME "wlp0s20f3"
+
 
 void signal_handler(int sig_num){
     net_device_t* ndev = netdev_get();

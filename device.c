@@ -3,10 +3,10 @@
 #include <errno.h>
 #include <malloc.h>
 
-#include "init.h"
+
 #include "common.h"
 #include "device.h"
-#include "debug.h"
+
 
 static net_device_t* gndev = NULL;
 static int terminate_loop;
@@ -41,18 +41,17 @@ net_device_t* netdev_init(char* if_name){
     struct bpf_program filter_code;
     net_device_t* ndev =(net_device_t*)malloc(sizeof(net_device_t));
     if(ndev == NULL){
-        printf("no memory for net device, %s(%d)\n",strerror(errno),errno);
+        printf("[error] no memory for net device, %s\n",strerror(errno));
         return NULL;
     }
     gndev = ndev;
     
-    printf("Network device init\n");
+    printf("[info] Network device init\n");
   
-    ndev->pcap_dev = pcap_open_live(DEFAULT_IFNAME,
+    ndev->pcap_dev = pcap_open_live(if_name,
           MAX_NETWORK_SEGMENT_SIZE, PROMISC_ENABLE, TIMEOUT_MS, err_buf);
     if (ndev->pcap_dev == NULL) {
-        printf("pcap_open_live failed, %s (%d)\n",
-                         strerror(errno), errno);
+        printf("[error] pcap_open_live failed, %s\n",strerror(errno));
       goto out;
     }
     
@@ -77,7 +76,7 @@ out:
 
 void netdev_destory(net_device_t* ndev){
     if(ndev == NULL) return;
-    printf("Network device failed\n");
+    printf("[info] Network device destory\n");
     if(ndev->pcap_dev)  
         pcap_close(gndev->pcap_dev);
     free(ndev);

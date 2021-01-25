@@ -1,9 +1,9 @@
 #ifndef _DEVICE_H_
 #define _DEVICE_H_
+
+#include "utils.h"
 #include <pcap/pcap.h>
 #include <pthread.h>
-#include "utils.h"
-
 
 #define MAX_NETWORK_SEGMENT_SIZE       65535
 #define PROMISC_ENABLE                 1

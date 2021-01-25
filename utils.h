@@ -1,6 +1,8 @@
-#ifndef __UTILS_H_
-#define __UTILS_H_
+#ifndef _UTILS_H_
+#define _UTILS_H_
+
 #include<stddef.h>
+
 
 typedef struct _list_head{
     struct _list_head* prev;
@@ -69,27 +71,31 @@ typedef struct _queue {
   list_head_t head;
  } queue_t;
 
-static inline void queue_init(queue_t *q)
+ inline void queue_init(queue_t *q)
  {
   list_init(&q->head);
  }
  
- static inline int queue_empty(queue_t *q)
+  inline int queue_empty(queue_t *q)
  {
   return list_empty(&q->head);
  }
 
 
-static inline void enqueue(queue_t *qhead, queue_t *qnode)
+ inline void enqueue(queue_t *qhead, queue_t *qnode)
  {
   list_add_tail(&qhead->head, &qnode->head);
  }
  
- static inline queue_t *dequeue(queue_t *qhead){
+  inline queue_t *dequeue(queue_t *qhead){
     list_head_t *node = NULL;
     node = qhead->head.next;
     list_del(node);
     return container_of(node, queue_t, head);
 
  }
+
+
+
+
 #endif

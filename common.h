@@ -14,6 +14,7 @@ typedef struct _ethhdr {
     unsigned short type;
 } __attribute__((packed)) ethhdr_t;
 
+
 #define NTOHS(x) ({\
            unsigned short val = (x);\
            unsigned char *b = (unsigned char *)&(val);\
@@ -27,6 +28,7 @@ typedef struct _ethhdr {
 
 #define HTONS    NTOHS                                   
 #define HTONL    NTOHL                                   
+
 
 
 
