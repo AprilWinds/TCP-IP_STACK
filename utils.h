@@ -1,5 +1,5 @@
-#ifndef _UTILS_H_
-#define _UTILS_H_
+#ifndef __UTILS_H_
+#define __UTILS_H_
 
 #include<stddef.h>
 
@@ -10,12 +10,12 @@ typedef struct _list_head{
 }list_head_t;
 
 
-static inline void list_init(list_head_t *list_head)
+ static inline void list_init(list_head_t *list_head)
  {
   list_head->prev = list_head->next = list_head;
  }
 
- static inline void list_add_head(list_head_t *head, list_head_t *node)
+ static  inline void list_add_head(list_head_t *head, list_head_t *node)
  {
   node->next = head->next;
   node->prev = head;
@@ -24,7 +24,7 @@ static inline void list_init(list_head_t *list_head)
   head->next = node;
  }
 
- static inline void list_add_tail(list_head_t *head, list_head_t *node)
+  static inline void list_add_tail(list_head_t *head, list_head_t *node)
  {
   node->next = head;
   node->prev = head->prev;
@@ -32,7 +32,9 @@ static inline void list_init(list_head_t *list_head)
   head->prev->next = node;
   head->prev = node;
  }
- static inline void list_add(list_head_t *prev, list_head_t *node)
+
+ 
+  static inline void list_add(list_head_t *prev, list_head_t *node)
  {
   node->next = prev->next;
   node->prev = prev;
@@ -41,18 +43,18 @@ static inline void list_init(list_head_t *list_head)
   prev->next = node;
  }
 
- static inline void list_del(list_head_t *node)
+  static inline void list_del(list_head_t *node)
  {
   node->prev->next = node->next;
   node->next->prev = node->prev;
  }
 
-static inline int list_empty(list_head_t *list_head)
+ static inline int list_empty(list_head_t *list_head)
  {
   return (list_head->next == list_head && list_head->prev == list_head);
  }
 
-static list_head_t *list_get_node(list_head_t *head)
+ static list_head_t *list_get_node(list_head_t *head)
  {
   if (list_empty(head))
       return NULL;
@@ -84,7 +86,7 @@ typedef struct _queue {
 
  inline void enqueue(queue_t *qhead, queue_t *qnode)
  {
-  list_add_tail(&qhead->head, &qnode->head);
+    list_add_tail(&qhead->head, &qnode->head);
  }
  
   inline queue_t *dequeue(queue_t *qhead){
@@ -92,9 +94,7 @@ typedef struct _queue {
     node = qhead->head.next;
     list_del(node);
     return container_of(node, queue_t, head);
-
  }
-
 
 
 

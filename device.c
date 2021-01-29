@@ -3,13 +3,56 @@
 #include <errno.h>
 #include <malloc.h>
 
-
 #include "common.h"
 #include "device.h"
 
 
 static net_device_t* gndev = NULL;
 static int terminate_loop;
+
+
+static void rx_func(void* arg){
+    if(arg == NULL) return;
+    net_device_t* ndev = (void*)arg;
+
+    while (1){
+        pthread_mutex_lock(&ndev->rxq_mutex);
+        pthread_cond_wait(&ndev->rxq_cond,&ndev->rxq_mutex);
+        if(!queue_empty(&ndev->rxpkt_q)){
+            dev_rxpkt_t* rx_pkt= container_of(dequeue(&ndev->rxpkt_q),dev_rxpkt_t,node);
+            pthread_mutex_unlock(&ndev->rxq_mutex);
+            ethhdr_t* eth = NULL; 
+            if(rx_pkt != NULL){
+                eth = (ethhdr_t*)rx_pkt->payload;
+                printf("dev rx, ethernet type: %04x, "MACSTR " --> " MACSTR"\n",
+                 NTOHS(eth->type), MAC2STR(&eth->src), MAC2STR(eth->dst));
+                free(rx_pkt);
+            }   
+        }
+        pthread_mutex_unlock(&ndev->rxq_mutex);
+    
+    }
+    printf("[info] dev_rx processing end\n");
+}
+static int dev_rx_init(net_device_t* ndev){    
+    queue_init(&ndev->rxpkt_q);
+    pthread_mutex_init(&ndev->rxq_mutex,NULL);         
+    pthread_cond_init(&ndev->rxq_cond,NULL);
+    pthread_create(&ndev->rx_thread,NULL,rx_func,(void*)ndev);
+
+    printf("[info] dev_rx init\n");
+    return 1;
+}
+static void dev_rx_destory(net_device_t* ndev){
+    if(ndev == NULL) return;
+    pthread_join(ndev->rx_thread,NULL);
+    pthread_mutex_destroy(&ndev->rxq_mutex);
+    pthread_cond_destroy(&ndev->rxq_cond);
+    printf("[info] dev_rx destory\n");
+}
+
+
+
 
 static void  pcap_callback(unsigned char *arg, const struct pcap_pkthdr *pkthdr, 
                              const unsigned char *packet){
@@ -19,6 +62,15 @@ static void  pcap_callback(unsigned char *arg, const struct pcap_pkthdr *pkthdr,
 
     printf("%ld.%06ld: capture length: %u, pkt length: %u\n",
       pkthdr->ts.tv_sec, pkthdr->ts.tv_usec, pkthdr->caplen, pkthdr->len);
+    dev_rxpkt_t* rx_pkt = (dev_rxpkt_t*)malloc(pkthdr->caplen+sizeof(dev_rxpkt_t));
+    memset(rx_pkt,0,sizeof(dev_rxpkt_t)+pkthdr->caplen);
+    memcpy(rx_pkt->payload,packet,pkthdr->caplen);
+   
+    pthread_mutex_lock(&ndev->rxq_mutex);
+    enqueue(&ndev->rxpkt_q,&rx_pkt->node);
+    pthread_mutex_unlock(&ndev->rxq_mutex);
+
+    pthread_cond_signal(&ndev->rxq_cond);
 }
 
 
@@ -67,9 +119,12 @@ net_device_t* netdev_init(char* if_name){
         pcap_perror(ndev->pcap_dev, "pcap_setfilter");
         goto out;
     }
+    dev_rx_init(ndev);
+
     return ndev;
 out:
     netdev_destory(ndev);
+    dev_rx_destory(ndev);
     return NULL;
 }
 
