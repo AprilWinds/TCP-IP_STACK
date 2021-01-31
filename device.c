@@ -22,7 +22,7 @@ static void rx_func(void* arg){
         dev_rxpkt_t* rx_pkt = container_of(q,dev_rxpkt_t,node);
         if(rx_pkt != NULL){
             ethhdr_t* eth = (dev_rxpkt_t*)rx_pkt;
-            printf("dev rx type %ux\n",eth->type);
+            printf("dev rx, ethernet type:%04x ,"MACSTR "-->"MACSTR "\n",NTOHS(eth->type),MAC2STR(eth->src),MAC2STR(eth->dst));
             free(eth);
         }
         }else{
@@ -31,9 +31,11 @@ static void rx_func(void* arg){
         pthread_mutex_unlock(&ndev->rxq_mutex);
     }
     printf("[info] Dev rx_func end\n");
+    pthread_exit(0);
 }
 
 static int dev_rx_init(net_device_t* ndev){    
+   
     queue_init(&ndev->rxpkt_q);// 放弃等待直接结束未处理的直接丢弃
     pthread_mutex_init(&ndev->rxq_mutex,NULL);         
     pthread_cond_init(&ndev->rxq_cond,NULL);
@@ -46,15 +48,39 @@ static int dev_rx_init(net_device_t* ndev){
 static void dev_rx_destory(net_device_t* ndev){
     if(ndev == NULL) return;
     terminate_loop = 1;
-    pthread_cond_signal(&ndev->rxq_cond);
+    pthread_cond_signal(&ndev->rxq_cond);   
     pthread_join(ndev->rx_thread,NULL);
     pthread_mutex_destroy(&ndev->rxq_mutex);
     pthread_cond_destroy(&ndev->rxq_cond);
-    printf("[info] dev_rx destory\n");
+    printf("[info] Dev rx destory\n");
 }
 
+static void tx_func(void* arg){
+    if(arg == NULL) return;
+    net_device_t* ndev = (net_device_t*)arg;
+    while (!terminate_loop){
+    }
+    pthread_exit(0);
+    printf("[info] Dev_tx tx_func end\n");
+}
 
+static int dev_tx_init(net_device_t* ndev){
+    
+    queue_init(&ndev->txpkt_q);
+    pthread_mutex_init(&ndev->txq_mutex,NULL);
+    pthread_cond_init(&ndev->txq_cond,NULL);
+    pthread_create(&ndev->tx_thread,NULL,tx_func,(void*)ndev);
+    printf("[info] Dev_tx init\n");
+    return 1;
+}
 
+static void dev_tx_destory(net_device_t* ndev){
+    if(ndev == NULL) return;
+    terminate_loop = 1;
+    pthread_mutex_destroy(&ndev->txq_mutex);
+    pthread_cond_destroy(&ndev->txq_cond);
+    printf("[info] Dev_tx destory\n");
+}
 
 static void  pcap_callback(unsigned char *arg, const struct pcap_pkthdr *pkthdr, 
                              const unsigned char *packet){
@@ -123,7 +149,10 @@ net_device_t* netdev_init(char* if_name){
         pcap_perror(ndev->pcap_dev, "pcap_setfilter");
         goto out;
     }
-    dev_rx_init(ndev);
+    if(!dev_rx_init(ndev)) 
+        goto out;
+    if(!dev_tx_init(ndev))
+        goto out;
 
     return ndev;
 out:
@@ -138,6 +167,7 @@ void netdev_destory(net_device_t* ndev){
     if(ndev->pcap_dev != NULL)  
         pcap_close(gndev->pcap_dev);
     dev_rx_destory(ndev);
+    dev_tx_destory(ndev);
     free(ndev);
     gndev = NULL;
     
