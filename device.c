@@ -2,10 +2,11 @@
 #include <string.h>
 #include <errno.h>
 #include <malloc.h>
-#include <time.h>s
+#include <time.h>
+#include <linux/if_ether.h>
+#include <sys/socket.h>
 #include "common.h"
 #include "device.h"
-
 
 static net_device_t* gndev = NULL;
 static int terminate_loop;
@@ -41,7 +42,7 @@ static int dev_rx_init(net_device_t* ndev){
     pthread_cond_init(&ndev->rxq_cond,NULL);
     terminate_loop = 0;
     pthread_create(&ndev->rx_thread,NULL,rx_func,(void*)ndev);
-    printf("[info] dev_rx init\n");
+    printf("[info] dev rx init\n");
     return 1;
 }
 
@@ -50,8 +51,9 @@ static void dev_rx_destory(net_device_t* ndev){
     terminate_loop = 1;
     pthread_cond_signal(&ndev->rxq_cond);   
     pthread_join(ndev->rx_thread,NULL);
-    pthread_mutex_destroy(&ndev->rxq_mutex);
     pthread_cond_destroy(&ndev->rxq_cond);
+    pthread_mutex_destroy(&ndev->rxq_mutex);
+
     printf("[info] Dev rx destory\n");
 }
 
@@ -59,9 +61,23 @@ static void tx_func(void* arg){
     if(arg == NULL) return;
     net_device_t* ndev = (net_device_t*)arg;
     while (!terminate_loop){
+        pthread_mutex_lock(&ndev->txq_mutex);
+        if(!queue_empty(&ndev->txpkt_q)){
+            queue_t* q = dequeue(&ndev->txpkt_q);
+        pthread_mutex_unlock(&ndev->txq_mutex);
+        dev_txpkt_t* tx_pkt = container_of(q,dev_txpkt_t,node);
+        if(tx_pkt != NULL){
+            if(tx_pkt->pbuf!=NULL)
+                free(tx_pkt->pbuf);
+        }
+        }else{
+            pthread_cond_wait(&ndev->txq_cond,&ndev->txq_mutex);
+        }
+        pthread_mutex_unlock(&ndev->txq_mutex);
     }
+    printf("[info] dev tx_func end\n");
     pthread_exit(0);
-    printf("[info] Dev_tx tx_func end\n");
+
 }
 
 static int dev_tx_init(net_device_t* ndev){
@@ -70,16 +86,32 @@ static int dev_tx_init(net_device_t* ndev){
     pthread_mutex_init(&ndev->txq_mutex,NULL);
     pthread_cond_init(&ndev->txq_cond,NULL);
     pthread_create(&ndev->tx_thread,NULL,tx_func,(void*)ndev);
-    printf("[info] Dev_tx init\n");
+    ndev->tx_sock = socket(AF_PACKET,SOCK_RAW,HTONS(ETH_P_ALL));
+    printf("[info] dev tx init\n");
     return 1;
 }
 
 static void dev_tx_destory(net_device_t* ndev){
     if(ndev == NULL) return;
     terminate_loop = 1;
+    pthread_cond_signal(&ndev->txq_cond);
+    pthread_join(ndev->tx_thread,NULL);
     pthread_mutex_destroy(&ndev->txq_mutex);
     pthread_cond_destroy(&ndev->txq_cond);
-    printf("[info] Dev_tx destory\n");
+    if(ndev->tx_sock)
+        close(ndev->tx_sock);
+    printf("[info] dev tx destory\n");
+}
+
+void netdev_tx_pkt(void* pbuf){
+    if(gndev ==NULL ||pbuf ==NULL)
+        printf("[error] invalid net device\n");
+    dev_txpkt_t* tx_pkt = (dev_txpkt_t* )malloc(sizeof(dev_txpkt_t));
+    tx_pkt->pbuf = pbuf;
+    pthread_mutex_lock(&gndev->txq_mutex);
+    enqueue(&gndev->txpkt_q,&tx_pkt->node);
+    pthread_mutex_unlock(&gndev->txq_mutex);
+    pthread_cond_signal(&gndev->txq_cond);
 }
 
 static void  pcap_callback(unsigned char *arg, const struct pcap_pkthdr *pkthdr, 
@@ -128,7 +160,7 @@ net_device_t* netdev_init(char* if_name){
     }
     gndev = ndev;
     
-    printf("[info] Network device init\n");
+    printf("[info] network device init\n");
   
     ndev->pcap_dev = pcap_open_live(if_name,
           MAX_NETWORK_SEGMENT_SIZE, PROMISC_ENABLE, TIMEOUT_MS, err_buf);
@@ -163,7 +195,7 @@ out:
 
 void netdev_destory(net_device_t* ndev){
     if(ndev == NULL) return;
-    printf("[info] Network device destory\n");
+    printf("[info] network device destory\n");
     if(ndev->pcap_dev != NULL)  
         pcap_close(gndev->pcap_dev);
     dev_rx_destory(ndev);
